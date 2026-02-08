@@ -93,6 +93,7 @@ class DashboardController extends Controller
             Log::info('Resume uploaded', ['resume_id' => $resume->id, 'user_id' => $user->id]);
         }
 
+        $user->refresh();
         $jobDescription = $user->latestJobDescription;
         $originalResume = $user->originalResume;
 

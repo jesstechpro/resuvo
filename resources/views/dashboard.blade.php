@@ -122,7 +122,7 @@
                                             </button>
                                         </div>
                                         <div x-show="replacing" x-cloak class="mt-3 pt-3 border-t border-gray-200">
-                                            <input type="file" name="resume" accept=".pdf,.html,.htm,.txt" class="block w-full text-sm text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100" @change="hasFile = $event.target.files.length > 0">
+                                            <input type="file" :name="(replacing && hasFile) ? 'resume' : 'resume_optional'" accept=".pdf,.html,.htm,.txt" class="block w-full text-sm text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100" @change="hasFile = $event.target.files.length > 0">
                                         </div>
                                     </div>
                                 @else
