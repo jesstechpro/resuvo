@@ -76,9 +76,23 @@ class DashboardController extends Controller
 
     public function generate(Request $request): RedirectResponse
     {
-        $request->validate(['mode' => 'required|in:best_fit']);
+        $request->validate([
+            'mode' => 'required|in:best_fit',
+            'content' => 'nullable|string|max:' . config('resume.job_description.max_length'),
+            'resume' => 'nullable|file|mimes:' . implode(',', config('resume.upload.mimes')) . '|max:' . config('resume.upload.max_size'),
+        ]);
 
         $user = auth()->user();
+
+        if ($request->filled('content') && strlen(trim($request->input('content'))) > 0) {
+            $user->jobDescriptions()->create(['content' => trim($request->input('content'))]);
+        }
+
+        if ($request->hasFile('resume')) {
+            $resume = DB::transaction(fn () => $this->resumeStorage->storeOriginal($user, $request->file('resume')));
+            Log::info('Resume uploaded', ['resume_id' => $resume->id, 'user_id' => $user->id]);
+        }
+
         $jobDescription = $user->latestJobDescription;
         $originalResume = $user->originalResume;
 

@@ -24,158 +24,153 @@
             {{-- Step-based flow --}}
             <div class="space-y-0">
                 @php
-                    $step1Complete = !empty($jobContent ?? '');
-                    $step2Complete = ($originalResume ?? null) && $originalResume->exists ?? false;
-                    $canGenerate = $step1Complete && $step2Complete;
+                    $step1Complete = !empty(trim($jobContent ?? ''));
+                    $step2Complete = ($originalResume ?? null) && ($originalResume->exists ?? false);
                     $step3Complete = ($generatedResumes ?? collect())->isNotEmpty();
                 @endphp
 
-                {{-- Step 1: Paste Job Description --}}
-                <section class="relative">
-                    <div class="flex gap-4">
-                        <div class="flex shrink-0 flex-col items-center">
-                            <div class="flex h-9 w-9 items-center justify-center rounded-full border-2 border-gray-300 bg-white text-gray-600">
-                                <span class="text-sm font-semibold">1</span>
+                <form action="{{ route('dashboard.generate') }}" method="POST" enctype="multipart/form-data" class="space-y-0"
+                    x-data="{
+                        generating: false,
+                        contentLength: {{ strlen(trim($jobContent ?? '')) }},
+                        wordCount: {{ str_word_count(trim($jobContent ?? '')) }},
+                        hasFile: false,
+                        fileName: '',
+                        replacing: false,
+                        get canGenerate() {
+                            const hasJob = this.contentLength > 0 || {{ $step1Complete ? 'true' : 'false' }};
+                            const hasResume = this.hasFile || {{ $step2Complete ? 'true' : 'false' }};
+                            return hasJob && hasResume;
+                        }
+                    }"
+                    @submit="generating = true">
+                    @csrf
+                    <input type="hidden" name="mode" value="best_fit">
+
+                    {{-- Step 1: Paste Job Description --}}
+                    <section class="relative">
+                        <div class="flex gap-4">
+                            <div class="flex shrink-0 flex-col items-center">
+                                <div class="flex h-9 w-9 items-center justify-center rounded-full border-2 border-gray-300 bg-white text-gray-600">
+                                    <span class="text-sm font-semibold">1</span>
+                                </div>
+                                <div class="mt-1 w-px flex-1 bg-gray-200" aria-hidden="true"></div>
                             </div>
-                            <div class="mt-1 w-px flex-1 bg-gray-200" aria-hidden="true"></div>
-                        </div>
-                        <div class="min-w-0 flex-1 pb-12">
-                            <h2 class="text-base font-semibold text-gray-900">
-                                Paste Job Description
-                            </h2>
-                            <p class="mt-1 text-sm text-gray-500">
-                                We extract keywords, responsibilities, and role intent to tailor your resume.
-                            </p>
-                            <form action="{{ route('dashboard.job-description.store') }}" method="POST" class="mt-4" x-data="{ wordCount: {{ str_word_count($jobContent ?? '') }} }">
-                                @csrf
+                            <div class="min-w-0 flex-1 pb-12">
+                                <h2 class="text-base font-semibold text-gray-900">
+                                    Paste Job Description
+                                </h2>
+                                <p class="mt-1 text-sm text-gray-500">
+                                    We extract keywords, responsibilities, and role intent to tailor your resume.
+                                </p>
                                 <textarea
                                     name="content"
                                     rows="8"
-                                    @input="wordCount = $event.target.value.trim().split(/\s+/).filter(Boolean).length"
-                                    class="mt-2 block w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                    @input="const v = $event.target.value.trim(); contentLength = v.length; wordCount = v.split(/\s+/).filter(Boolean).length"
+                                    class="mt-4 block w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                                     placeholder="Paste the full job description here. Example:&#10;&#10;Senior Product Manager — We're looking for a PM with 5+ years experience in B2B SaaS. You'll own the roadmap, work with engineering and design, and drive outcomes through data. Requirements: SQL, A/B testing, stakeholder management…"
                                 >{{ old('content', $jobContent ?? '') }}</textarea>
                                 <div class="mt-2 flex flex-wrap items-center justify-between gap-2">
                                     <div class="flex items-center gap-3 text-xs text-gray-500">
                                         <span x-text="wordCount + ' words'"></span>
-                                        @if($step1Complete && $jobDescription ?? null)
+                                        @if($step1Complete && ($jobDescription ?? null))
                                             <span class="text-emerald-600">· Saved</span>
                                             @if($jobDescription->created_at ?? null)
                                                 <span>{{ $jobDescription->created_at->format('M j, Y') }}</span>
                                             @endif
                                         @endif
-                                        {{-- Reserved for future: detected role type --}}
                                         <span class="text-gray-300">· Role —</span>
                                     </div>
-                                    <button type="submit" class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
-                                        Analyze Job Description
-                                    </button>
                                 </div>
-                            </form>
-                        </div>
-                    </div>
-                </section>
-
-                {{-- Step 2: Upload Resume --}}
-                <section class="relative">
-                    <div class="flex gap-4">
-                        <div class="flex shrink-0 flex-col items-center">
-                            <div class="flex h-9 w-9 items-center justify-center rounded-full border-2 border-gray-300 bg-white text-gray-600">
-                                <span class="text-sm font-semibold">2</span>
                             </div>
-                            <div class="mt-1 w-px flex-1 bg-gray-200" aria-hidden="true"></div>
                         </div>
-                        <div class="min-w-0 flex-1 pb-12">
-                            <h2 class="text-base font-semibold text-gray-900">
-                                Upload Resume
-                            </h2>
-                            <p class="mt-1 text-sm text-gray-500">
-                                PDF preferred. We'll use this as the base for your tailored version.
-                            </p>
+                    </section>
 
-                            @if($originalResume ?? null)
-                                <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50/80 px-4 py-3" x-data="{ replacing: false }">
-                                    <div class="flex flex-wrap items-center justify-between gap-2">
-                                        <div class="min-w-0">
-                                            <p class="text-sm font-medium text-gray-900 truncate">{{ $originalResume->filename ?? 'resume' }}</p>
-                                            <p class="text-xs text-gray-500 mt-0.5">
-                                                {{ $originalResume->created_at->format('M j, Y g:i A') }}
-                                                @if(str_ends_with(strtolower($originalResume->filename ?? ''), '.pdf'))
-                                                    <span class="text-emerald-600">· PDF detected · ATS-safe</span>
-                                                @else
-                                                    <span class="text-gray-500">· Uploaded</span>
-                                                @endif
-                                            </p>
-                                        </div>
-                                        <button type="button" @click="replacing = true" x-show="!replacing" class="shrink-0 text-sm font-medium text-indigo-600 hover:text-indigo-700">
-                                            Replace file
-                                        </button>
-                                    </div>
-                                    <form x-show="replacing" x-cloak action="{{ route('dashboard.resume.upload') }}" method="POST" enctype="multipart/form-data" class="mt-3 pt-3 border-t border-gray-200">
-                                        @csrf
-                                        <input type="file" name="resume" accept=".pdf,.html,.htm,.txt" required class="block w-full text-sm text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100">
-                                        <div class="mt-2 flex justify-end">
-                                            <button type="submit" class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
-                                                Confirm Resume
+                    {{-- Step 2: Upload Resume --}}
+                    <section class="relative">
+                        <div class="flex gap-4">
+                            <div class="flex shrink-0 flex-col items-center">
+                                <div class="flex h-9 w-9 items-center justify-center rounded-full border-2 border-gray-300 bg-white text-gray-600">
+                                    <span class="text-sm font-semibold">2</span>
+                                </div>
+                                <div class="mt-1 w-px flex-1 bg-gray-200" aria-hidden="true"></div>
+                            </div>
+                            <div class="min-w-0 flex-1 pb-12">
+                                <h2 class="text-base font-semibold text-gray-900">
+                                    Upload Resume
+                                </h2>
+                                <p class="mt-1 text-sm text-gray-500">
+                                    PDF preferred. We'll use this as the base for your tailored version.
+                                </p>
+
+                                @if($originalResume ?? null)
+                                    <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50/80 px-4 py-3">
+                                        <div class="flex flex-wrap items-center justify-between gap-2">
+                                            <div class="min-w-0">
+                                                <p class="text-sm font-medium text-gray-900 truncate">{{ $originalResume->filename ?? 'resume' }}</p>
+                                                <p class="text-xs text-gray-500 mt-0.5">
+                                                    {{ $originalResume->created_at->format('M j, Y g:i A') }}
+                                                    @if(str_ends_with(strtolower($originalResume->filename ?? ''), '.pdf'))
+                                                        <span class="text-emerald-600">· PDF detected · ATS-safe</span>
+                                                    @else
+                                                        <span class="text-gray-500">· Uploaded</span>
+                                                    @endif
+                                                </p>
+                                            </div>
+                                            <button type="button" @click="replacing = !replacing" class="shrink-0 text-sm font-medium text-indigo-600 hover:text-indigo-700">
+                                                <span x-text="replacing ? 'Cancel' : 'Replace file'"></span>
                                             </button>
                                         </div>
-                                    </form>
-                                </div>
-                            @else
-                                <form action="{{ route('dashboard.resume.upload') }}" method="POST" enctype="multipart/form-data" class="mt-4" x-data="{ file: null, fileName: '' }">
-                                    @csrf
-                                    <label class="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50/50 px-6 py-8 text-center hover:border-gray-400 hover:bg-gray-50 transition-colors cursor-pointer">
-                                        <input type="file" name="resume" accept=".pdf,.html,.htm,.txt" required class="hidden" @change="file = $event.target.files[0]; fileName = file ? file.name : ''">
+                                        <div x-show="replacing" x-cloak class="mt-3 pt-3 border-t border-gray-200">
+                                            <input type="file" name="resume" accept=".pdf,.html,.htm,.txt" class="block w-full text-sm text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100" @change="hasFile = $event.target.files.length > 0">
+                                        </div>
+                                    </div>
+                                @else
+                                    <label class="mt-4 flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50/50 px-6 py-8 text-center hover:border-gray-400 hover:bg-gray-50 transition-colors cursor-pointer">
+                                        <input type="file" name="resume" accept=".pdf,.html,.htm,.txt" required class="hidden" @change="hasFile = $event.target.files.length > 0; fileName = $event.target.files[0]?.name || ''">
                                         <svg class="mx-auto h-10 w-10 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v20c0 4.418 3.582 8 8 8h16c4.418 0 8-3.582 8-8V14M24 4v28M16 20l8-8 8 8"/></svg>
                                         <span class="mt-2 text-sm text-gray-600" x-text="fileName || 'Drop your resume here or click to browse'"></span>
                                         <span class="mt-0.5 text-xs text-gray-400">PDF, HTML, or TXT · Max {{ $resumeUploadMaxMb ?? 10 }} MB</span>
                                     </label>
-                                    <p class="mt-2 text-xs text-gray-500" x-show="file && fileName.toLowerCase().endsWith('.pdf')" x-cloak>PDF detected · ATS-safe</p>
-                                    <div class="mt-3 flex justify-end">
-                                        <button type="submit" class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
-                                            Confirm Resume
-                                        </button>
-                                    </div>
-                                </form>
-                            @endif
-                        </div>
-                    </div>
-                </section>
-
-                {{-- Generate (primary CTA) --}}
-                <section class="relative">
-                    <div class="flex gap-4">
-                        <div class="flex shrink-0 flex-col items-center">
-                            <div class="flex h-9 w-9 items-center justify-center rounded-full border-2 border-gray-300 bg-white text-gray-600">
-                                <span class="text-sm font-semibold">3</span>
+                                @endif
                             </div>
                         </div>
-                        <div class="min-w-0 flex-1 pb-10">
-                            <h2 class="text-base font-semibold text-gray-900">
-                                Generate Optimized Resume
-                            </h2>
-                            <p class="mt-1 text-sm text-gray-500">
-                                Tailored to this role. Keyword-aligned. Recruiter-ready.
-                            </p>
-                            <form action="{{ route('dashboard.generate') }}" method="POST" class="mt-4" x-data="{ generating: false }" @submit="generating = true">
-                                @csrf
-                                <input type="hidden" name="mode" value="best_fit">
-                                <button type="submit"
-                                    :disabled="generating || {{ $canGenerate ? 'false' : 'true' }}"
-                                    class="inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white shadow-sm {{ $canGenerate ? 'bg-indigo-600 hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2' : 'cursor-not-allowed bg-gray-300' }} disabled:opacity-90 disabled:cursor-wait">
-                                    <span x-show="!generating">Generate ATS-Optimized Resume</span>
-                                    <span x-show="generating" x-cloak class="inline-flex items-center gap-2">
-                                        <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                        Generating…
-                                    </span>
-                                </button>
-                            </form>
+                    </section>
+
+                    {{-- Generate (only button) --}}
+                    <section class="relative">
+                        <div class="flex gap-4">
+                            <div class="flex shrink-0 flex-col items-center">
+                                <div class="flex h-9 w-9 items-center justify-center rounded-full border-2 border-gray-300 bg-white text-gray-600">
+                                    <span class="text-sm font-semibold">3</span>
+                                </div>
+                            </div>
+                            <div class="min-w-0 flex-1 pb-10">
+                                <h2 class="text-base font-semibold text-gray-900">
+                                    Generate Optimized Resume
+                                </h2>
+                                <p class="mt-1 text-sm text-gray-500">
+                                    Tailored to this role. Keyword-aligned. Recruiter-ready.
+                                </p>
+                                <div class="mt-4">
+                                    <button type="submit"
+                                        :disabled="generating || !canGenerate"
+                                        class="inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-90 disabled:cursor-wait"
+                                        :class="canGenerate && !generating ? 'bg-indigo-600 hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2' : 'bg-gray-300'">
+                                        <span x-show="!generating">Generate ATS-Optimized Resume</span>
+                                        <span x-show="generating" x-cloak class="inline-flex items-center gap-2">
+                                            <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Generating…
+                                        </span>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </section>
+                    </section>
+                </form>
             </div>
 
             {{-- Generated resumes --}}
